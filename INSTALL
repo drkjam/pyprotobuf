@@ -1,0 +1,12 @@
+Build Dependencies
+==================
+- python (2.6)
+- python-mako 
+- scons
+- protobuf-c
+
+Build Instructions
+==================
+$ cd pyprotobuf
+$ scons
+
