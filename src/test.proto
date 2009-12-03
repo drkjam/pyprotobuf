@@ -1,9 +1,34 @@
 message TestMessage 
 {
-    required string name = 1;
-    required int32  id = 2;
-    optional string email = 3 ;
-    optional bool chaitan = 4;
+    required string req_string = 1;
+    optional string opt_string = 2;
+
+    required string req_string_def = 3 [default = "default_string"];
+    optional string opt_string_def = 4 [default = "default_string"];
+
+    required int32  req_int32  = 5 [default = 666];
+    optional int32  opt_int32  = 6;
+    
+    required int32  req_int32_def_pos  = 7 [default = 2147483647];
+    optional int32  opt_int32_def_pos  = 8 [default = 2147483647];
+
+    required int32  req_int32_def_neg = 9   [default = -2147483648];
+    optional int32  opt_int32_def_neg  = 10 [default = -2147483648];
+
+    required uint32  req_uint32_def_pos  = 11 [default = 4294967295];
+    optional uint32  opt_uint32_def_pos  = 12 [default = 4294967295];
+
+    required uint64  req_uint64_def_pos  = 13 [default = 18446744073709551615];
+    optional uint64  opt_uint64_def_pos  = 14 [default = 18446744073709551615];
+
+    required bool   req_bool = 15; 
+    optional bool   opt_bool = 16;
+
+    required bool   req_bool_def_true = 17 [default = true]; 
+    optional bool   opt_bool_def_true = 18 [default = true];
+
+    required bool   req_bool_def_false = 19 [default = false]; 
+    optional bool   opt_bool_def_false = 20 [default = false];
 }
 
 message Empty 
