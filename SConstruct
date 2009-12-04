@@ -4,7 +4,8 @@ env = Environment(
     CPPPATH = [
         "/usr/include/python2.6", 
         "srcgen"
-    ]
+    ],
+    CFLAGS = "-g",
 )
 
 def Binding(name):

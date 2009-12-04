@@ -1,10 +1,10 @@
 message TestMessage 
 {
-    required string req_string = 1;
     optional string opt_string = 2;
+    required string req_string = 1;
 
-    required string req_string_def = 3 [default = "default_string"];
-    optional string opt_string_def = 4 [default = "default_string"];
+    required string req_string_def = 3 [default = "hello"];
+    optional string opt_string_def = 4 [default = "world"];
 
     required int32  req_int32  = 5 [default = 666];
     optional int32  opt_int32  = 6;
@@ -12,8 +12,8 @@ message TestMessage
     required int32  req_int32_def_pos  = 7 [default = 2147483647];
     optional int32  opt_int32_def_pos  = 8 [default = 2147483647];
 
-    required int32  req_int32_def_neg = 9   [default = -2147483648];
-    optional int32  opt_int32_def_neg  = 10 [default = -2147483648];
+    required int32  req_int32_def_neg  = 9   [default = -2147483648];
+    optional int32  opt_int32_def_neg  = 10  [default = -2147483648];
 
     required uint32  req_uint32_def_pos  = 11 [default = 4294967295];
     optional uint32  opt_uint32_def_pos  = 12 [default = 4294967295];
@@ -29,6 +29,7 @@ message TestMessage
 
     required bool   req_bool_def_false = 19 [default = false]; 
     optional bool   opt_bool_def_false = 20 [default = false];
+    
 }
 
 message Empty 

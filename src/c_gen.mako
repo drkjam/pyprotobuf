@@ -14,7 +14,10 @@ PyObject *pypb_decode_field(ProtobufCMessage *msg, ProtobufCFieldDescriptor desc
 {
     PyObject *field = NULL;
     
-    char *c = &(((char*)msg)[descr.offset]);  
+    char *c = &(((char*)msg)[descr.offset]);
+    char *c_has_member = &(((char*)msg)[descr.quantifier_offset]);
+    int has_member = *((int*)c_has_member);
+
     switch(descr.label)
     {
         case PROTOBUF_C_LABEL_REQUIRED:
@@ -24,11 +27,19 @@ PyObject *pypb_decode_field(ProtobufCMessage *msg, ProtobufCFieldDescriptor desc
             {
                 case PROTOBUF_C_TYPE_UINT32:
                 {
+                    if(descr.label ==  PROTOBUF_C_LABEL_OPTIONAL && !has_member)
+                    {
+                        Py_RETURN_NONE;
+                    }
                     u_int32_t i = *((u_int32_t*)c);
                     return PyLong_FromLongLong(i);
                 }
                 case PROTOBUF_C_TYPE_UINT64:
                 { 
+                    if(descr.label ==  PROTOBUF_C_LABEL_OPTIONAL && !has_member)
+                    {
+                        Py_RETURN_NONE;
+                    }
                     u_int64_t i = *((u_int64_t*)c);
                     return PyLong_FromUnsignedLongLong(i);
                 }
@@ -37,6 +48,10 @@ PyObject *pypb_decode_field(ProtobufCMessage *msg, ProtobufCFieldDescriptor desc
                 case PROTOBUF_C_TYPE_SFIXED64:
                 case PROTOBUF_C_TYPE_FIXED64:
                 {
+                    if(descr.label ==  PROTOBUF_C_LABEL_OPTIONAL && !has_member)
+                    {
+                        Py_RETURN_NONE;
+                    }
                     u_int64_t i = *((u_int64_t*)c);
                     return PyLong_FromLongLong(i);
                 }
@@ -46,6 +61,10 @@ PyObject *pypb_decode_field(ProtobufCMessage *msg, ProtobufCFieldDescriptor desc
                 case PROTOBUF_C_TYPE_SFIXED32:
                 case PROTOBUF_C_TYPE_FIXED32:
                 { 
+                    if(descr.label ==  PROTOBUF_C_LABEL_OPTIONAL && !has_member)
+                    {
+                        Py_RETURN_NONE;
+                    }
                     u_int32_t i = *((u_int32_t*)c);
                     return PyInt_FromLong(i);
                 }
@@ -56,7 +75,20 @@ PyObject *pypb_decode_field(ProtobufCMessage *msg, ProtobufCFieldDescriptor desc
                 }
                 case PROTOBUF_C_TYPE_STRING:
                 {
-                    return PyString_FromString(c);
+                    if(descr.label ==  PROTOBUF_C_LABEL_OPTIONAL && !has_member)
+                    {
+                        Py_RETURN_NONE;
+                    }
+                    char *p = *((char**)c);
+                    
+                    if(p)
+                    {
+                        return PyString_FromString(p);
+                    }
+                    else
+                    {
+                        return PyString_FromString("");
+                    }
                 }
                 default:
                 {
@@ -66,7 +98,8 @@ PyObject *pypb_decode_field(ProtobufCMessage *msg, ProtobufCFieldDescriptor desc
         }
         case PROTOBUF_C_LABEL_REPEATED:
         {
-            return PyString_FromString("Not supported yet!!");
+            PyErr_SetString(PyExc_RuntimeError, "repeated fields not supported yet");
+            goto err;
         }
         default:
         {
@@ -87,7 +120,10 @@ PyObject *pypb_ENCODE(PyObject *self, PyObject *args)
     TestMessage msg;
 
     test_message__init(&msg);
-
+    /*
+    msg.opt_int32 = 100;
+    msg.has_opt_int32 = 100;
+    */
     size = test_message__get_packed_size(&msg);
 
     buf = malloc(size);
