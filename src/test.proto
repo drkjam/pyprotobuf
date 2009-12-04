@@ -30,6 +30,23 @@ message TestMessage
     required bool   req_bool_def_false = 19 [default = false]; 
     optional bool   opt_bool_def_false = 20 [default = false];
     
+    required sint32  req_sint32_def_pos  = 21 [default = 2147483647];
+    optional sint32  opt_sint32_def_pos  = 22 [default = 2147483647];
+
+    required sint32  req_sint32_def_neg  = 23   [default = -2147483648];
+    optional sint32  opt_sint32_def_neg  = 24  [default = -2147483648];
+
+    required sint32  req_sfixed32_def_neg  = 25   [default = -2147483648];
+    optional sint32  opt_sfixed32_def_neg  = 26  [default = -2147483648];
+
+    required int64  req_int64_def_pos  = 27 [default = 9223372036854775807];
+    optional int64  opt_int64_def_pos  = 28 [default = 9223372036854775807];
+
+    required int64  req_int64_def_neg  = 29 [default = -9223372036854775808];
+    optional int64  opt_int64_def_neg  = 30 [default = -9223372036854775808];
+
+    required bytes  req_bytes  = 31 [default = "Hello\0World"];
+    optional bytes  opt_bytes  = 32 [default = "Hello\0World"];
 }
 
 message Empty 

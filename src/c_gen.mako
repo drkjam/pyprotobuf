@@ -40,7 +40,7 @@ PyObject *pypb_decode_field(ProtobufCMessage *msg, ProtobufCFieldDescriptor desc
                     {
                         Py_RETURN_NONE;
                     }
-                    u_int64_t i = *((u_int64_t*)c);
+                    u_int8_t i = *((u_int64_t*)c);
                     return PyLong_FromUnsignedLongLong(i);
                 }
                 case PROTOBUF_C_TYPE_SINT64:
@@ -52,7 +52,7 @@ PyObject *pypb_decode_field(ProtobufCMessage *msg, ProtobufCFieldDescriptor desc
                     {
                         Py_RETURN_NONE;
                     }
-                    u_int64_t i = *((u_int64_t*)c);
+                    int64_t i = *((int64_t*)c);
                     return PyLong_FromLongLong(i);
                 }
                 
@@ -90,12 +90,23 @@ PyObject *pypb_decode_field(ProtobufCMessage *msg, ProtobufCFieldDescriptor desc
                         return PyString_FromString("");
                     }
                 }
+                case PROTOBUF_C_TYPE_BYTES:
+                {
+                    if(descr.label ==  PROTOBUF_C_LABEL_OPTIONAL && !has_member)
+                    {
+                        Py_RETURN_NONE;
+                    }
+                    ProtobufCBinaryData *p = (ProtobufCBinaryData*)c;
+                    return PyString_FromStringAndSize(p->data, p->len);
+                }
                 default:
                 {
                     PyErr_SetString(PyExc_RuntimeError, "unknown type!");
                 }
             }
+            break;
         }
+        
         case PROTOBUF_C_LABEL_REPEATED:
         {
             PyErr_SetString(PyExc_RuntimeError, "repeated fields not supported yet");
@@ -119,11 +130,20 @@ PyObject *pypb_ENCODE(PyObject *self, PyObject *args)
     PyObject *ret = NULL;
     TestMessage msg;
 
+    ProtobufCBinaryData p;
+
     test_message__init(&msg);
     /*
     msg.opt_int32 = 100;
     msg.has_opt_int32 = 100;
+    msg.req_int64_def_neg = -9223372036854775808; // BUG in default value handling on range boundaries!
     */
+    msg.req_bytes.data = "Some\0RubbishXXX";
+    msg.req_bytes.len = 12;
+
+    msg.req_bytes.data = "Some\0RubbishXXX";
+    msg.opt_bytes.len = 12;
+    
     size = test_message__get_packed_size(&msg);
 
     buf = malloc(size);
@@ -223,6 +243,7 @@ PyObject *pypb_DECODE(PyObject *self, PyObject *args)
         }
     }
 
+    protobuf_c_message_free_unpacked(cmsg, NULL);
     return msg;
 
     err:
