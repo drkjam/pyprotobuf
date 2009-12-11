@@ -1,161 +1,286 @@
 #include <Python.h>
 #include <stdlib.h>
-#include <src/test.pb-c.h>
+#include <iostream>
+#include <fstream>
+#include <src/test.pb.h>
 #include <sys/types.h>
+#include <google/protobuf/descriptor.pb.h>
+#include <google/protobuf/descriptor.h>
 
-static PyObject *py_module = NULL;
+using namespace::google;
 
-PyObject *pypb_get_msg_descriptors()
+PyObject* _pypb_DECODE(const protobuf::Message *msg);
+
+class AutoDecref 
 {
+    public:
+        AutoDecref(PyObject *p);
+        ~AutoDecref();
+        PyObject *ok();
+        PyObject *ptr;
+};
+
+AutoDecref::AutoDecref(PyObject *p)
+{
+    this->ptr = p;
+}
+
+AutoDecref::~AutoDecref()
+{
+    Py_XDECREF(ptr);
+}
+
+PyObject* AutoDecref::ok()
+{
+    PyObject *p = this->ptr;
+    this->ptr = NULL;
+    return p;
+}
+
+
+PyObject *pypb_decode_simple_type(const protobuf::Message *msg, const protobuf::FieldDescriptor *field_descriptor)
+{
+    
+    const protobuf::Reflection *reflection = msg->GetReflection();
+    if(field_descriptor->label() == protobuf::FieldDescriptor::LABEL_OPTIONAL)
+    {
+        if(!reflection->HasField(*msg, field_descriptor))
+        {
+            Py_RETURN_NONE;
+        }
+    }
+    switch(field_descriptor->cpp_type())
+    {
+        case protobuf::FieldDescriptor::CPPTYPE_INT32:
+        {
+            protobuf::int32 i = reflection->GetInt32(*msg, field_descriptor);
+            return PyLong_FromLong(i);
+        }
+        case protobuf::FieldDescriptor::CPPTYPE_INT64:
+        {
+            protobuf::int64 i = reflection->GetInt64(*msg, field_descriptor);
+            return PyLong_FromLongLong(i);
+        }
+        case protobuf::FieldDescriptor::CPPTYPE_UINT32:
+        {
+            
+            protobuf::uint32 i = reflection->GetUInt32(*msg, field_descriptor);
+            return PyLong_FromLongLong(i);
+        }
+        case protobuf::FieldDescriptor::CPPTYPE_UINT64:
+        {
+            protobuf::uint64 i = reflection->GetUInt64(*msg, field_descriptor);
+            return PyLong_FromUnsignedLongLong(i);
+        }
+        case protobuf::FieldDescriptor::CPPTYPE_DOUBLE:
+        {
+            double d = reflection->GetDouble(*msg, field_descriptor);
+            return PyFloat_FromDouble(d);
+        }
+        case protobuf::FieldDescriptor::CPPTYPE_FLOAT:
+        {
+            float f = reflection->GetFloat(*msg, field_descriptor);
+            return PyFloat_FromDouble(f);
+        }
+        case protobuf::FieldDescriptor::CPPTYPE_BOOL:
+        {
+            bool b = reflection->GetBool(*msg, field_descriptor);
+            if(b)
+            {
+                return PyBool_FromLong(1);
+            }
+            else
+            {
+                return PyBool_FromLong(0);
+            }
+        }
+        case protobuf::FieldDescriptor::CPPTYPE_ENUM:
+        {
+            return PyString_FromString("ENUM - FIXME");   
+        }
+        case protobuf::FieldDescriptor::CPPTYPE_STRING:
+        {
+            const std::string &s = reflection->GetStringReference(*msg, field_descriptor, NULL);
+            return PyString_FromString(s.c_str());
+        }
+        case protobuf::FieldDescriptor::CPPTYPE_MESSAGE:
+        {
+            return PyString_FromString("Message Here - FIXME!");   
+        }
+        default:
+            PyErr_SetString(PyExc_RuntimeError, "unhandled type in decode");
+            return NULL;
+    }
     return NULL;
 }
 
-PyObject *pypb_decode_field(ProtobufCMessage *msg, ProtobufCFieldDescriptor descr)
+bool pypb_decode_field(PyObject *dct, const protobuf::Message *msg, int fieldIndex)
 {
-    PyObject *field = NULL;
-    
-    char *c = &(((char*)msg)[descr.offset]);
-    char *c_has_member = &(((char*)msg)[descr.quantifier_offset]);
-    int has_member = *((int*)c_has_member);
+    const protobuf::Descriptor *descriptor = NULL; 
+    const protobuf::FieldDescriptor *field_descriptor = NULL;
 
-    switch(descr.label)
+    descriptor = msg->GetDescriptor();
+    field_descriptor = descriptor->field(fieldIndex);
+
+    const char *field_name = field_descriptor->name().c_str();
+    switch(field_descriptor->label())
     {
-        case PROTOBUF_C_LABEL_REQUIRED:
-        case PROTOBUF_C_LABEL_OPTIONAL:
+        case protobuf::FieldDescriptor::LABEL_OPTIONAL:
+        case protobuf::FieldDescriptor::LABEL_REQUIRED:
         {
-            switch(descr.type)
+            PyObject *field_value = pypb_decode_simple_type(msg, field_descriptor);
+            if(!field_value)
             {
-                case PROTOBUF_C_TYPE_UINT32:
+                return false;
+            }
+            else
+            {
+                int fail = PyDict_SetItemString(dct, field_name, field_value);
+                Py_DECREF(field_value);
+                if(fail)
                 {
-                    if(descr.label ==  PROTOBUF_C_LABEL_OPTIONAL && !has_member)
-                    {
-                        Py_RETURN_NONE;
-                    }
-                    u_int32_t i = *((u_int32_t*)c);
-                    return PyLong_FromLongLong(i);
-                }
-                case PROTOBUF_C_TYPE_UINT64:
-                { 
-                    if(descr.label ==  PROTOBUF_C_LABEL_OPTIONAL && !has_member)
-                    {
-                        Py_RETURN_NONE;
-                    }
-                    u_int8_t i = *((u_int64_t*)c);
-                    return PyLong_FromUnsignedLongLong(i);
-                }
-                case PROTOBUF_C_TYPE_SINT64:
-                case PROTOBUF_C_TYPE_INT64:
-                case PROTOBUF_C_TYPE_SFIXED64:
-                case PROTOBUF_C_TYPE_FIXED64:
-                {
-                    if(descr.label ==  PROTOBUF_C_LABEL_OPTIONAL && !has_member)
-                    {
-                        Py_RETURN_NONE;
-                    }
-                    int64_t i = *((int64_t*)c);
-                    return PyLong_FromLongLong(i);
-                }
-                
-                case PROTOBUF_C_TYPE_INT32:
-                case PROTOBUF_C_TYPE_SINT32:
-                case PROTOBUF_C_TYPE_SFIXED32:
-                case PROTOBUF_C_TYPE_FIXED32:
-                { 
-                    if(descr.label ==  PROTOBUF_C_LABEL_OPTIONAL && !has_member)
-                    {
-                        Py_RETURN_NONE;
-                    }
-                    u_int32_t i = *((u_int32_t*)c);
-                    return PyInt_FromLong(i);
-                }
-                case PROTOBUF_C_TYPE_BOOL:
-                {
-                    int i = *((int*)c);
-                    return PyBool_FromLong(i);
-                }
-                case PROTOBUF_C_TYPE_STRING:
-                {
-                    if(descr.label ==  PROTOBUF_C_LABEL_OPTIONAL && !has_member)
-                    {
-                        Py_RETURN_NONE;
-                    }
-                    char *p = *((char**)c);
-                    
-                    if(p)
-                    {
-                        return PyString_FromString(p);
-                    }
-                    else
-                    {
-                        return PyString_FromString("");
-                    }
-                }
-                case PROTOBUF_C_TYPE_BYTES:
-                {
-                    if(descr.label ==  PROTOBUF_C_LABEL_OPTIONAL && !has_member)
-                    {
-                        Py_RETURN_NONE;
-                    }
-                    ProtobufCBinaryData *p = (ProtobufCBinaryData*)c;
-                    return PyString_FromStringAndSize(p->data, p->len);
-                }
-                default:
-                {
-                    PyErr_SetString(PyExc_RuntimeError, "unknown type!");
+                    return false;
                 }
             }
-            break;
+            return true;
         }
-        
-        case PROTOBUF_C_LABEL_REPEATED:
+        case protobuf::FieldDescriptor::LABEL_REPEATED:
         {
-            PyErr_SetString(PyExc_RuntimeError, "repeated fields not supported yet");
-            goto err;
+            PyObject *lst = PyList_New(0);
+            const protobuf::Reflection *reflection = msg->GetReflection();
+
+            if(!lst)
+            {
+                return false;
+            }
+            
+            int failed = PyDict_SetItemString(dct, field_descriptor->name().c_str(), lst);
+            Py_DECREF(lst);
+            if(failed)
+            {
+                return false;
+            }
+            int size =  reflection->FieldSize(*msg, field_descriptor);
+            PyObject *item = NULL;
+
+            for(int i = 0; i < size; i++)
+            {
+                switch(field_descriptor->cpp_type())
+                {
+                    case protobuf::FieldDescriptor::CPPTYPE_INT32:
+                    {
+                        protobuf::int32 i = reflection->GetRepeatedInt32(*msg, field_descriptor, i);
+                        item = PyLong_FromLong(i);
+                        break;
+                    }
+                    case protobuf::FieldDescriptor::CPPTYPE_INT64:
+                    {
+                        protobuf::int64 i = reflection->GetRepeatedInt64(*msg, field_descriptor, i);
+                        item = PyLong_FromLongLong(i);
+                        break;
+                    }
+                    case protobuf::FieldDescriptor::CPPTYPE_UINT32:
+                    {
+                        
+                        protobuf::uint32 i = reflection->GetRepeatedUInt32(*msg, field_descriptor, i);
+                        item = PyLong_FromLongLong(i);
+                        break;
+                    }
+                    case protobuf::FieldDescriptor::CPPTYPE_UINT64:
+                    {
+                        protobuf::uint64 i = reflection->GetRepeatedUInt64(*msg, field_descriptor, i);
+                        item = PyLong_FromUnsignedLongLong(i);
+                        break;
+                    }
+                    case protobuf::FieldDescriptor::CPPTYPE_DOUBLE:
+                    {
+                        double d = reflection->GetRepeatedDouble(*msg, field_descriptor, i);
+                        item = PyFloat_FromDouble(d);
+                        break;
+                    }
+                    case protobuf::FieldDescriptor::CPPTYPE_FLOAT:
+                    {
+                        float f = reflection->GetRepeatedDouble(*msg, field_descriptor, i);
+                        item = PyFloat_FromDouble(f);
+                        break;
+                    }
+                    case protobuf::FieldDescriptor::CPPTYPE_BOOL:
+                    {
+                        bool b = reflection->GetRepeatedBool(*msg, field_descriptor, i);
+                        if(b)
+                        {
+                            item = PyBool_FromLong(1);
+                        }
+                        else
+                        {
+                            item = PyBool_FromLong(0);
+                        }
+                        break;
+                    }
+                    case protobuf::FieldDescriptor::CPPTYPE_ENUM:
+                    {
+                        item = PyString_FromString("ENUM - FIXME");   
+                        break;
+                    }
+                    case protobuf::FieldDescriptor::CPPTYPE_STRING:
+                    {
+                        const std::string &s = reflection->GetRepeatedString(*msg, field_descriptor, i);
+                        item = PyString_FromString(s.c_str());
+                        break;
+                    }
+                    case protobuf::FieldDescriptor::CPPTYPE_MESSAGE:
+                    {
+                        item = PyDict_New();
+                        const protobuf::Message &submsg = reflection->GetRepeatedMessage(*msg, field_descriptor, i);
+                        item = _pypb_DECODE(&submsg);
+                        break;
+                    }
+                    default:
+                        PyErr_SetString(PyExc_RuntimeError, "unhandled type in decode");
+                        return NULL;
+                }
+                if(!item)
+                {
+                    return false;
+                }
+                PyList_Append(lst, item);
+            }
+            return true;
         }
         default:
         {
-            PyErr_SetString(PyExc_RuntimeError, "unknown descriptor label");
-            goto err;
+            PyErr_SetString(PyExc_RuntimeError, "unhandled label in decode");
+            return false;
         }
     }
-    err:
-        Py_XDECREF(field);
-        return NULL;
 }
+
+PyObject* _pypb_DECODE(const protobuf::Message *msg)
+{
+
+    const protobuf::Descriptor *descriptor = msg->GetDescriptor();
+    PyObject *dct = PyDict_New();
+    if(!dct)
+    {
+        return NULL;
+    }
+    
+    AutoDecref ret(dct);
+
+    for(int i = 0; i < descriptor->field_count(); i++)
+    {
+        if(!pypb_decode_field(dct, msg, i))
+        {
+            return NULL;
+        }
+    }
+    return ret.ok();
+}
+
 
 PyObject *pypb_ENCODE(PyObject *self, PyObject *args)
 {
-    size_t size;
-    char *buf;
-    PyObject *ret = NULL;
-    TestMessage msg;
-
-    ProtobufCBinaryData p;
-
-    test_message__init(&msg);
-    /*
-    msg.opt_int32 = 100;
-    msg.has_opt_int32 = 100;
-    msg.req_int64_def_neg = -9223372036854775808; // BUG in default value handling on range boundaries!
-    */
-    msg.req_bytes.data = "Some\0RubbishXXX";
-    msg.req_bytes.len = 12;
-
-    msg.req_bytes.data = "Some\0RubbishXXX";
-    msg.opt_bytes.len = 12;
-    
-    size = test_message__get_packed_size(&msg);
-
-    buf = malloc(size);
-    if(!buf)
-    {
-        PyErr_SetString(PyExc_MemoryError, "malloc failed");
-        return NULL;
-    }
-    test_message__pack(&msg, buf);
-    ret = PyString_FromStringAndSize(buf, size);
-    free(buf);
-    return ret;
+    Py_RETURN_NONE;
 }
 
 
@@ -165,94 +290,24 @@ PyObject *pypb_DECODE(PyObject *self, PyObject *args)
     size_t size;
 
     PyObject *ret = NULL;
-    PyObject *msg = NULL;
-    PyObject *fields = NULL;
+    PyObject *pymsg = NULL;
 
-    ProtobufCMessage *cmsg = NULL;
+    protobuf::FileDescriptorSet msg;
 
     if(!PyArg_ParseTuple(args, "z#", &buf, &size))
     {
         return NULL;
     }
 
-    cmsg = protobuf_c_message_unpack(
-        &test_message__descriptor, 
-        NULL, 
-        size, 
-        buf
-    );
-
-    if(!cmsg)
+    std::string istring(buf);
+    if(msg.ParseFromString(istring) == false)
     {
-        PyErr_SetString(PyExc_RuntimeError, "decode failed - invalid buffer?");
-        goto err;
-    }
-
-    msg = PyDict_New();
-    if(!msg)
-    {
+        PyErr_SetString(PyExc_RuntimeError, "decode failed!!");
         return NULL;
-    }
-    else
-    {
-        %for field in ["name", "short_name", "c_name", "package_name"]:
-        {
-            PyObject *o = PyString_FromString(test_message__descriptor.${field});
-            if(!o)
-            {
-                goto err;
-            }
+    } 
 
-            int error = PyDict_SetItemString(msg, "${field}", o);
-            Py_DECREF(o);
-
-            if(error)
-            {
-                goto err;
-            }
-        }
-        %endfor
-        
-        fields = PyDict_New();
-
-        if(!fields)
-        {
-            goto err;
-        }
-        
-        if(PyDict_SetItemString(msg, "fields", fields))
-        {
-            Py_DECREF(fields);
-            goto err;
-        }
-
-        unsigned i = 0;
-        for(i = 0; i < test_message__descriptor.n_fields; i++)
-        {
-            PyObject *field = pypb_decode_field(cmsg, test_message__descriptor.fields[i]);
-            if(!field)
-            {
-                goto err;
-            }
-            int error = PyDict_SetItemString(fields, test_message__descriptor.fields[i].name, field);
-            Py_DECREF(field);
-            if(error)
-            {
-                goto err;
-            }
-        }
-    }
-
-    protobuf_c_message_free_unpacked(cmsg, NULL);
-    return msg;
-
-    err:
-        if(cmsg)
-        {
-            protobuf_c_message_free_unpacked(cmsg, NULL);
-        }
-        Py_XDECREF(msg);
-        return NULL;
+    pymsg = _pypb_DECODE(&msg);
+    return pymsg;
         
 }
 

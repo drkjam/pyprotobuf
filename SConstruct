@@ -8,46 +8,54 @@ env = Environment(
     CFLAGS = "-g",
 )
 
-def Binding(name):
-    protof = "src/%s.proto" % name
-    env.Command(
-        [
-            'srcgen/src/%s.pb-c.c' % name, 
-            'srcgen/src/%s.pb-c.h' % name,
-        ], 
-        protof,
-        'protoc-c $SOURCE  --c_out srcgen',
-    )
-    pythongen = env.Command(
-        [
-            "%s.py" % name, 
-        ],
-        [ 
-            protof,
-            'src/python_gen.mako'
-        ],
-        'PYTHONPATH=$PYTHONPATH:src bin/compiler $SOURCES $TARGET',
-    )
+PROTO = "src/test.proto"
 
-    cgen = env.Command(
-        [
-            'srcgen/src/python_%s_gen.c' % name, 
-        ],
-        [ 
-            protof,
-            'src/c_gen.mako'
-        ],
-        'PYTHONPATH=$PYTHONPATH:src bin/compiler $SOURCES $TARGET',
-    )
+env.Command(
+    [
+        'srcgen/src/test.bin', 
+    ], 
+    PROTO,
+    'protoc %s -o srcgen/src/test.bin' % PROTO,
+)
 
-    env.SharedLibrary(
-        '_%s' % name, 
-        [
-            cgen,
-            'srcgen/src/%s.pb-c.c' % name,
-        ],
-        LIBS = ['protobuf-c'],
-        SHLIBPREFIX=''
-    )
 
-Binding("test")
+desc = env.Command(
+    [
+        'srcgen/src/test.pb.cc', 
+    ],
+    PROTO,
+    'protoc $SOURCE --cpp_out srcgen',
+)
+
+pythongen = env.Command(
+    [
+        "test.py", 
+    ],
+    [ 
+        PROTO,
+        'src/python_gen.mako'
+    ],
+    'PYTHONPATH=$PYTHONPATH:src bin/compiler $SOURCES $TARGET',
+)
+
+cgen = env.Command(
+    [
+        'srcgen/src/python_test_gen.cc'
+    ],
+    [ 
+        PROTO,
+        'src/c_gen.mako'
+    ],
+    'PYTHONPATH=$PYTHONPATH:src bin/compiler $SOURCES $TARGET',
+)
+
+env.SharedLibrary(
+    '_test',
+    [
+        desc,
+        cgen,
+    ],
+    LIBS = ['protobuf'],
+    SHLIBPREFIX=''
+)
+
